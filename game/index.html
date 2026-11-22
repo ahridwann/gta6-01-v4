@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lumina City: Night Courier</title>
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0c1e; font-family: Arial, Helvetica, sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; z-index: 5; }
+  #hud.dim::after { content: ''; position: absolute; inset: 0; background: rgba(5, 6, 16, 0.72); }
+
+  .panel { position: absolute; background: rgba(8, 10, 24, 0.72); border: 1px solid rgba(46, 230, 255, 0.35); border-radius: 10px; padding: 10px 14px; }
+  #hud-top-left { top: 14px; left: 14px; }
+  #hud-cash { font-size: 26px; font-weight: bold; color: #2ee6ff; letter-spacing: 1px; }
+  #hud-rank { font-size: 13px; color: #ffb02e; letter-spacing: 2px; text-transform: uppercase; }
+  #hud-stars { font-size: 20px; color: #ffd23e; letter-spacing: 3px; margin-top: 4px; }
+  #hud-stars.hot { color: #ff3b30; }
+  #hud-top-right { top: 14px; right: 14px; text-align: right; min-width: 170px; }
+  #hud-speed { font-size: 24px; font-weight: bold; }
+  #hud-health-bar { width: 160px; height: 10px; background: rgba(255,255,255,0.15); border-radius: 5px; margin-top: 6px; overflow: hidden; }
+  #hud-health-fill { height: 100%; width: 100%; background: #2ee66a; border-radius: 5px; }
+  #hud-health-fill.low { background: #ff3b30; }
+  #hud-health-num, #hud-ammo { font-size: 12px; color: #cdd6ff; margin-top: 4px; }
+  #hud-mission { font-size: 12px; color: #ff2ea6; letter-spacing: 1px; margin-top: 6px; text-transform: uppercase; }
+  #hud-objective { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(8, 10, 24, 0.72); border: 1px solid rgba(255, 46, 166, 0.4); border-radius: 10px; padding: 9px 18px; font-size: 14px; max-width: 46vw; text-align: center; }
+  #hud-hint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #9fb0d8; background: rgba(8, 10, 24, 0.6); border-radius: 8px; padding: 6px 12px; }
+  #minimap { position: absolute; bottom: 16px; right: 16px; width: 168px; height: 168px; border: 1px solid rgba(46, 230, 255, 0.4); border-radius: 10px; background: rgba(8, 10, 22, 0.85); }
+  #hud-toast { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); background: rgba(255, 46, 166, 0.9); color: #fff; font-weight: bold; padding: 10px 20px; border-radius: 20px; font-size: 15px; opacity: 0; transition: opacity 0.25s; white-space: nowrap; }
+  #hud-toast.show { opacity: 1; }
+
+  .menu { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; pointer-events: auto; }
+  .menu.hidden { display: none; }
+  .menu-card { background: rgba(10, 12, 30, 0.94); border: 2px solid #ff2ea6; border-radius: 16px; padding: 34px 44px; max-width: 560px; text-align: center; box-shadow: 0 0 60px rgba(255, 46, 166, 0.35); }
+  .menu-card h1 { margin: 0 0 4px; font-size: 40px; letter-spacing: 3px; color: #ff2ea6; text-shadow: 0 0 18px rgba(255, 46, 166, 0.7); }
+  .menu-card h2 { margin: 0 0 14px; font-size: 15px; letter-spacing: 6px; color: #2ee6ff; text-transform: uppercase; }
+  .menu-card p { font-size: 15px; line-height: 1.55; color: #dfe6ff; }
+  .menu-card .controls { font-size: 13px; color: #9fb0d8; line-height: 1.8; margin: 14px 0; }
+  .menu-card button { pointer-events: auto; cursor: pointer; font-size: 17px; font-weight: bold; letter-spacing: 1px; color: #0a0c1e; background: #2ee6ff; border: none; border-radius: 10px; padding: 13px 34px; margin: 6px 4px 0; }
+  .menu-card button.secondary { background: transparent; color: #2ee6ff; border: 2px solid #2ee6ff; }
+  .menu-card button:hover { filter: brightness(1.15); }
+  #briefing-reward { color: #ffd23e; font-weight: bold; }
+  #over-title { color: #ff3b30; text-shadow: 0 0 18px rgba(255, 59, 48, 0.7); }
+  #btn-mute { position: absolute; bottom: 16px; left: 16px; pointer-events: auto; cursor: pointer; background: rgba(8, 10, 24, 0.72); color: #fff; border: 1px solid rgba(46, 230, 255, 0.35); border-radius: 8px; padding: 8px 12px; font-size: 13px; z-index: 6; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Lumina City: Night Courier — drive Juno Reyes through a neon night city, take Mara Voss's jobs, outrun the police"></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+
+<div id="hud">
+  <div class="panel" id="hud-top-left">
+    <div id="hud-cash">$0</div>
+    <div id="hud-rank">Street Rookie</div>
+    <div id="hud-stars">☆☆☆☆☆</div>
+  </div>
+  <div class="panel" id="hud-top-right">
+    <div id="hud-speed">ON FOOT</div>
+    <div id="hud-health-bar"><div id="hud-health-fill"></div></div>
+    <div id="hud-health-num">100</div>
+    <div id="hud-ammo">Ammo 24</div>
+    <div id="hud-mission">Next: First Drop</div>
+  </div>
+  <div id="hud-objective">Follow Mara’s jobs — press M for the next mission.</div>
+  <canvas id="minimap" width="168" height="168"></canvas>
+  <div id="hud-toast"></div>
+  <div id="hud-hint">WASD move/drive · E enter car · M next mission · T taxi · F punch · G shoot · Esc pause</div>
+
+  <div class="menu" id="menu-start">
+    <div class="menu-card">
+      <h1>LUMINA CITY</h1>
+      <h2>Night Courier</h2>
+      <p>You are <b>Juno “Jinx” Reyes</b>, getaway driver for fixer <b>Mara Voss</b>. One neon night, five jobs, and every cop in Lumina City on your tail. Drive fast, stay clean — or don’t.</p>
+      <p class="controls">WASD — move / drive &nbsp;·&nbsp; Mouse — look<br>E — enter / steal car &nbsp;·&nbsp; M — next mission &nbsp;·&nbsp; T — taxi fare<br>F — punch &nbsp;·&nbsp; G — pistol (24 rounds) &nbsp;·&nbsp; Shift — run &nbsp;·&nbsp; Esc — pause</p>
+      <button id="btn-start">START THE NIGHT</button>
+      <button id="btn-continue" class="secondary">CONTINUE (SAVE)</button>
+    </div>
+  </div>
+
+  <div class="menu hidden" id="menu-pause">
+    <div class="menu-card">
+      <h1>PAUSED</h1>
+      <p>The city waits. Your save is already stored.</p>
+      <button id="btn-resume">RESUME</button>
+      <button id="btn-quit" class="secondary">QUIT TO TITLE</button>
+    </div>
+  </div>
+
+  <div class="menu hidden" id="menu-briefing">
+    <div class="menu-card">
+      <h1 id="briefing-title">First Drop</h1>
+      <p id="briefing-text"></p>
+      <p id="briefing-reward">Reward: $250</p>
+      <button id="btn-accept">ACCEPT JOB</button>
+      <button id="btn-decline" class="secondary">NOT YET</button>
+    </div>
+  </div>
+
+  <div class="menu hidden" id="menu-over">
+    <div class="menu-card">
+      <h1 id="over-title">BUSTED</h1>
+      <p id="over-text"></p>
+      <button id="btn-restart">BACK ON THE STREET</button>
+      <button id="btn-title" class="secondary">TITLE SCREEN</button>
+    </div>
+  </div>
+</div>
+<button id="btn-mute">🔊 Sound On</button>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
